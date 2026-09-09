@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>观察会话</h2>
+<div class="card">
+<table>
+  <tr><th>#</th><th>学员</th><th>主观察员</th><th>冻结版本</th><th>物种</th><th>区域</th><th>状态</th><th>结果</th><th>得分</th></tr>
+  {% for s in sessions %}
+  <tr>
+    <td><a href="{% url 'exercises:detail' s.pk %}">#{{ s.pk }}</a></td>
+    <td>{{ s.trainee.username }}</td>
+    <td>{{ s.primary_observer.username }}</td>
+    <td>{{ s.snapshot.code }} v{{ s.snapshot.version }}</td>
+    <td>{{ s.get_species_category_display }}</td>
+    <td>{{ s.get_operation_area_display }}</td>
+    <td>{{ s.get_status_display }}</td>
+    <td><span class="badge {{ s.result }}">{{ s.get_result_display }}</span></td>
+    <td>{{ s.score_percent|default:"—" }}</td>
+  </tr>
+  {% empty %}<tr><td colspan="9" class="muted">暂无会话</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

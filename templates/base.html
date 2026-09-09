@@ -1,0 +1,52 @@
+{% load static %}<!doctype html>
+<html lang="zh-hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}实验动物中心 · 培训观察平台{% endblock %}</title>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<style>
+  body{font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+  nav{background:#1f3a5f;color:#fff;padding:.6rem 1rem;display:flex;gap:1rem;align-items:center}
+  nav a{color:#cfe0f5;text-decoration:none} nav a:hover{color:#fff}
+  main{max-width:1080px;margin:1.2rem auto;padding:0 1rem}
+  table{border-collapse:collapse;width:100%;background:#fff}
+  th,td{border:1px solid #dde3ea;padding:.45rem .6rem;text-align:left;vertical-align:top;font-size:.92rem}
+  th{background:#eef2f7}
+  .card{background:#fff;border:1px solid #dde3ea;border-radius:8px;padding:1rem;margin-bottom:1rem}
+  .badge{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.82rem;background:#e5e9f0}
+  .badge.pass{background:#d7f0dd}.badge.fail{background:#f8d7da}.badge.pending{background:#fff3cd}
+  .error{background:#f8d7da;border:1px solid #e8a4ac;padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem}
+  .messages li{list-style:none;padding:.4rem .8rem;border-radius:6px;background:#d7f0dd;margin-bottom:.4rem}
+  .messages li.error{background:#f8d7da}
+  button{cursor:pointer;border:1px solid #9db4d0;background:#fff;border-radius:5px;padding:.3rem .7rem}
+  button.primary{background:#1f3a5f;color:#fff;border-color:#1f3a5f}
+  input,select,textarea{padding:.3rem;border:1px solid #c4ccd6;border-radius:5px;font-size:.9rem}
+  .muted{color:#6b7686;font-size:.85rem}
+  .critical{border-left:4px solid #c0392b;padding-left:.6rem;margin:.4rem 0}
+  .conflict{border-left:4px solid #e67e22;padding-left:.6rem;margin:.4rem 0}
+</style>
+</head>
+<body>
+<nav>
+  <strong>实验动物中心 · 培训观察</strong>
+  <a href="{% url 'exercises:list' %}">观察会话</a>
+  {% if user.is_authenticated %}
+    <a href="{% url 'exercises:create' %}">新建会话</a>
+    <span style="margin-left:auto">{{ user.username }}（{{ user.get_role_display }}）</span>
+    <form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button>退出</button></form>
+  {% else %}
+    <a href="{% url 'login' %}" style="margin-left:auto">登录</a>
+  {% endif %}
+</nav>
+<main>
+  {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script>
+function getCookie(n){const v=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return v?v.pop():''}
+document.body.addEventListener('htmx:configRequest',function(e){e.detail.headers['X-CSRFToken']=getCookie('csrftoken')});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

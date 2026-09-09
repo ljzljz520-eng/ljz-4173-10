@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: training_evidence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  s3:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: s3
+    ports: ["4566:4566"]
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py seed_demo &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      POSTGRES_HOST: db
+      AWS_S3_ENDPOINT_URL: http://s3:4566
+      AWS_STORAGE_BUCKET_NAME: training-clips
+    ports: ["8000:8000"]
+    depends_on: [db, s3]
+
+volumes:
+  pgdata:

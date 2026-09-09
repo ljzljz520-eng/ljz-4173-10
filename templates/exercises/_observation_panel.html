@@ -1,0 +1,86 @@
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="card">
+  <h3>
+    观察表
+    <span class="badge">得分 {{ score.percent|default:"—" }}% ({{ score.earned }}/{{ score.available }})</span>
+    <span class="badge {{ session.result }}">{{ session.get_result_display }}</span>
+  </h3>
+  <table>
+    <tr><th>#</th><th>步骤</th><th>能力域</th><th>观察记录(按记录顺序)</th><th>生效结论</th><th>操作</th></tr>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.step.order }}</td>
+      <td>{{ row.step.name }}</td>
+      <td>{{ row.step.phase_display }}</td>
+      <td>
+        {% for rec in row.records %}
+        <div>
+          #{{ rec.recorded_seq }} {{ rec.observer.username }}:
+          <b>{{ rec.get_outcome_display }}</b> ({{ rec.points_awarded }}/{{ rec.max_points }})
+          {% if rec.is_backfilled %}<span class="badge pending">补录: {{ rec.backfill_reason }}</span>{% endif %}
+          {% if rec.note %}<br><span class="muted">{{ rec.note }}</span>{% endif %}
+        </div>
+        {% empty %}<span class="muted">未记录</span>{% endfor %}
+      </td>
+      <td>{{ row.effective|default:"—" }}</td>
+      <td>
+        {% if can_record and not row.recorded_by_me %}
+        <form hx-post="{% url 'exercises:record_step' session.id %}" hx-target="#observation-panel" hx-swap="outerHTML">
+          <input type="hidden" name="step_code" value="{{ row.step.code }}">
+          <select name="outcome">
+            <option value="pass">合格</option><option value="partial">部分合格</option>
+            <option value="fail">不合格</option><option value="na">不适用</option>
+          </select>
+          <input name="note" placeholder="备注" size="10">
+          <input name="backfill_reason" placeholder="补录原因(乱序时必填)" size="12">
+          <button type="submit">记录</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h4>关键失败项(系统提示, 须观察员确认)</h4>
+  {% for c in criticals %}
+  <div class="critical">
+    <b>{{ c.item_code }}</b> {{ c.item_description }} — {{ c.get_state_display }}
+    {% if c.decided_by %}(由 {{ c.decided_by.username }} 于 {{ c.decided_at|date:"m-d H:i" }} 处理){% endif %}
+    {% if c.state == "pending" and can_record %}
+    <form hx-post="{% url 'exercises:decide_critical' session.id c.item_code %}" hx-target="#observation-panel" hx-swap="outerHTML" style="display:inline">
+      <input name="note" placeholder="说明" size="10">
+      <button name="decision" value="confirm">确认关键失败</button>
+      <button name="decision" value="dismiss">排除</button>
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}<p class="muted">暂无关键失败提示</p>{% endfor %}
+
+  <h4>观察员冲突</h4>
+  {% for cf in conflicts %}
+  <div class="conflict">
+    步骤 <b>{{ cf.step_code }}</b>:
+    {{ cf.record_a.observer.username }}={{ cf.record_a.get_outcome_display }}
+    ⇄ {{ cf.record_b.observer.username }}={{ cf.record_b.get_outcome_display }}
+    — {{ cf.get_status_display }}
+    {% if cf.status == "resolved" %}(裁定为 {{ cf.get_resolved_outcome_display }} by {{ cf.resolved_by.username }}){% endif %}
+    {% if cf.status == "open" and can_record %}
+    <form hx-post="{% url 'exercises:resolve_conflict' session.id cf.id %}" hx-target="#observation-panel" hx-swap="outerHTML" style="display:inline">
+      <select name="outcome">
+        <option value="pass">合格</option><option value="partial">部分合格</option>
+        <option value="fail">不合格</option><option value="na">不适用</option>
+      </select>
+      <input name="note" placeholder="裁定说明" size="10">
+      <button type="submit">裁定</button>
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}<p class="muted">无冲突</p>{% endfor %}
+
+  {% if can_record %}
+  <form method="post" action="{% url 'exercises:finalize' session.id %}"
+        onsubmit="return confirm('定稿后不可再记录, 确认?')">{% csrf_token %}
+    <button class="primary" type="submit">定稿并出结果</button>
+  </form>
+  {% endif %}
+</div>

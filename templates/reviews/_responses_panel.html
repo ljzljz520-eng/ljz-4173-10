@@ -1,0 +1,13 @@
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="card">
+  <h3>学员回应与讨论(原意见保留, 不删除)</h3>
+  {% for r in responses %}
+  <p><b>{{ r.author.username }}</b> <span class="muted">{{ r.created_at|date:"Y-m-d H:i" }}</span><br>{{ r.body|linebreaksbr }}</p>
+  {% empty %}<p class="muted">暂无回应</p>{% endfor %}
+  {% if can_respond %}
+  <form hx-post="{% url 'reviews:add_response' session.id %}" hx-target="#responses-panel" hx-swap="outerHTML">
+    <textarea name="body" rows="2" style="width:100%" placeholder="写下回应..."></textarea>
+    <button type="submit">提交回应</button>
+  </form>
+  {% endif %}
+</div>

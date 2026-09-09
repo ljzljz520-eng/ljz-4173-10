@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>新建观察会话</h2>
+<div class="card">
+<form method="post">{% csrf_token %}
+  <p>学员:
+    <select name="trainee">{% for t in trainees %}<option value="{{ t.pk }}">{{ t.username }}</option>{% endfor %}</select>
+  </p>
+  <p>流程版本(创建后冻结):
+    <select name="sop_version">{% for v in versions %}<option value="{{ v.pk }}">{{ v.facility }} {{ v.code }} v{{ v.version }} — {{ v.title }}</option>{% endfor %}</select>
+  </p>
+  <p>物种类别:
+    <select name="species_category">{% for val,label in species_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select>
+  </p>
+  <p>操作区域:
+    <select name="operation_area">{% for val,label in area_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select>
+  </p>
+  <button class="primary" type="submit">创建并冻结版本</button>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>观察会话 #{{ session.id }}</h2>
+<div class="card">
+  <p>
+    学员 <b>{{ session.trainee.username }}</b> · 主观察员 <b>{{ session.primary_observer.username }}</b>
+    · 冻结版本 <b>{{ session.snapshot.facility }}/{{ session.snapshot.code }} v{{ session.snapshot.version }}</b>
+    (分数线 {{ session.snapshot.pass_threshold }}%, 证据保留 {{ session.snapshot.retention_days }} 天)
+  </p>
+  <p>
+    物种类别 <span class="badge">{{ session.get_species_category_display }}</span>
+    操作区域 <span class="badge">{{ session.get_operation_area_display }}</span>
+    状态 <span class="badge">{{ session.get_status_display }}</span>
+    {% if session.supersedes %}复评自 <a href="{% url 'exercises:detail' session.supersedes_id %}">#{{ session.supersedes_id }}</a>{% endif %}
+  </p>
+</div>
+
+<div id="observation-panel">
+  {% include "exercises/_observation_panel.html" %}
+</div>
+
+<div class="card">
+  <h3>授权视频片段(S3)</h3>
+  {% if can_record %}
+  <p>
+    <input type="file" id="clip-file" accept="video/*">
+    <button class="primary" onclick="startUpload()">上传</button>
+    <button onclick="abortUpload()">中止上传</button>
+    <span id="upload-status" class="muted"></span>
+  </p>
+  {% endif %}
+  <table>
+    <tr><th>#</th><th>文件</th><th>状态</th><th>大小</th><th>保留至</th><th>操作</th></tr>
+    {% for clip in clips %}
+    <tr>
+      <td>{{ clip.id }}</td>
+      <td>{{ clip.original_filename }}</td>
+      <td>{{ clip.get_status_display }}</td>
+      <td>{{ clip.size_bytes|default:"—" }}</td>
+      <td>{{ clip.retention_until|date:"Y-m-d H:i"|default:"—" }}</td>
+      <td>
+        {% if clip.status == "completed" %}
+        <a href="{% url 'media:clip_access' clip.id %}" target="_blank">查看</a>
+        <a href="{% url 'media:clip_access' clip.id %}?download=1">下载</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="muted">暂无片段</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div id="responses-panel">
+  {% include "reviews/_responses_panel.html" %}
+</div>
+
+<div class="card">
+  <h3>复评</h3>
+  {% if user == session.trainee and session.status == "finalized" %}
+  <form method="post" action="{% url 'reviews:request_rereview' session.id %}">{% csrf_token %}
+    <input name="reason" placeholder="申请理由" required>
+    <button type="submit">申请复评</button>
+  </form>
+  {% endif %}
+  {% for req in rereviews %}
+  <p class="conflict">
+    #{{ req.id }} {{ req.requested_by.username }}: {{ req.reason }} — <b>{{ req.get_status_display }}</b>
+    {% if req.resolution_note %}({{ req.resolution_note }}){% endif %}
+    {% if req.status == "open" and can_record %}
+    <form method="post" action="{% url 'reviews:resolve_rereview' req.id %}" style="display:inline">{% csrf_token %}
+      <input name="note" placeholder="处理说明">
+      <button name="decision" value="accept">受理(开启新会话)</button>
+      <button name="decision" value="decline">驳回</button>
+    </form>
+    {% endif %}
+  </p>
+  {% empty %}<p class="muted">暂无复评申请</p>{% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if can_record %}
+<script>
+let _active = null; // {clipId, controllers: []}
+async function startUpload(){
+  const f = document.getElementById('clip-file').files[0];
+  const st = document.getElementById('upload-status');
+  if(!f){ st.textContent='请先选择文件'; return; }
+  const csrf = getCookie('csrftoken');
+  const init = await (await fetch("{% url 'media:init_upload' session.id %}", {
+    method:'POST',
+    headers:{'X-CSRFToken':csrf,'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({filename:f.name, content_type:f.type||'video/mp4'})
+  })).json();
+  const clipId = init.clip_id;
+  const partSize = 8*1024*1024;
+  const total = Math.max(1, Math.ceil(f.size/partSize));
+  const parts = []; const controllers = [];
+  _active = {clipId, controllers};
+  try{
+    for(let p=1;p<=total;p++){
+      st.textContent = `上传分片 ${p}/${total}`;
+      const {url} = await (await fetch(`/media/clips/${clipId}/presign-part/?part_number=${p}`)).json();
+      const ctrl = new AbortController(); controllers.push(ctrl);
+      const up = await fetch(url, {method:'PUT', body:f.slice((p-1)*partSize, p*partSize), signal:ctrl.signal});
+      if(!up.ok) throw new Error('分片上传失败');
+      parts.push({PartNumber:p, ETag:up.headers.get('ETag')});
+    }
+    await fetch(`/media/clips/${clipId}/complete/`, {method:'POST', headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'}, body:JSON.stringify({parts})});
+    st.textContent = '上传完成';
+  }catch(e){
+    await fetch(`/media/clips/${clipId}/abort/`, {method:'POST', headers:{'X-CSRFToken':csrf}});
+    st.textContent = '上传已中止';
+  }
+  _active = null;
+  location.reload();
+}
+function abortUpload(){
+  if(_active){ _active.controllers.forEach(c=>c.abort()); }
+}
+</script>
+{% endif %}
+{% endblock %}
